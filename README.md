@@ -12,7 +12,7 @@ You will need to export `memory` & `malloc` in your wasm.
 
 You can easily override how the filesystem works, and also overwrite any individual method, if you want to control things, more.
 
-In adition to filessystem functions, it also includes all the regular WASI stuff, like random numbers and ysstem-clock and things.
+In adition to filessystem functions, it also includes all the regular WASI stuff, like random numbers and system-clock and things. No networking or anything else, but you can add that , if you need it.
 
 
 ## usage
