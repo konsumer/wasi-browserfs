@@ -59,6 +59,7 @@ import { setup, getFs, Buffer } from 'wasi-browserfs'
 
 // this sets up the filesystem
 // in this case it's a merged zip/localstorage system
+// write is not optimial-speed, but it works pretty well for writing small files
 const fs = await getFs({
   fs: 'OverlayFS',
   options: {
