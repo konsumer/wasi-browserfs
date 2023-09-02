@@ -1,0 +1,39 @@
+{
+  "name": "wasi-browserfs",
+  "version": "0.0.0",
+  "description": "A light WASI for browsers, that uses BrowserFS.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./index.js"
+    }
+  },
+  "scripts": {
+    "test": "vitetest run --globals",
+    "start": "vite",
+    "example": "cd example && docker run -it --rm -v $(pwd):/cart konsumer/null0:latest make"
+  },
+  "keywords": [
+    "was",
+    "WASI",
+    "BrowserFS"
+  ],
+  "author": "David Konsumer <konsumer@jetboystudio.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/konsumer/wasi-browserfs#readme",
+  "bugs": {
+    "url": "https://github.com/konsumer/wasi-browserfs/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/konsumer/wasi-browserfs.git"
+  },
+  "dependencies": {
+    "browserfs": "^1.4.3",
+    "cmem_helpers": "^0.0.9"
+  },
+  "devDependencies": {
+    "vite": "^4.4.9",
+    "vitest": "^0.34.3"
+  }
+}

@@ -1,0 +1,46 @@
+<p>This is a simple example, to test browser-support.</p>
+
+<p>Here is my stdout/stderr:</p>
+
+<textarea id="out" cols="30"></textarea>
+<textarea id="err" cols="30"></textarea>
+
+<script type="module">
+import { setup, getFs, Buffer } from '.'
+
+const fs = await getFs({
+  fs: 'OverlayFS',
+  options: {
+    readable: {
+      fs: 'ZipFS',
+      options: {
+        zipData: Buffer.from(await fetch('example/simple.zip').then(r => r.arrayBuffer()))
+      }
+    },
+    writable: {
+      fs: 'LocalStorage'
+    }
+  }
+})
+
+const tout = document.getElementById('out')
+const terr = document.getElementById('err')
+
+const stdout = t => tout.value += t
+const stderr = t => terr.value += t
+
+const wasi_snapshot_preview1 = setup(fs, stdout, stderr)
+
+
+const {instance} = await WebAssembly.instantiateStreaming(fetch("example/simple.wasm"), { wasi_snapshot_preview1 })
+
+wasi_snapshot_preview1._set_instance(instance)
+
+if (instance.exports._initialize) {
+  instance.exports._initialize
+}
+if (instance.exports._start){
+  instance.exports._start()
+}
+
+</script>
