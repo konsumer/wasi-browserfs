@@ -6,7 +6,7 @@ I saw a few [WASI](https://wasi.dev/) implementations for browsers, but they all
 
 [BrowserFS](https://github.com/jvilk/BrowserFS) allows you to merge multiple filesystems (for example read zip, but write to localstorage) so you can write code in your favorite language that supports WASI, and run it in browsers (and also native.)
 
-It has dependencies on [BrowserFS](https://github.com/jvilk/BrowserFS) and [cmem_helpers](https://github.com/konsumer/cmem_helpers), which are both pretty easy to setup with/without a package-manager, and are both otherwise useful for wasm stuff.
+It has dependencies on [BrowserFS](https://github.com/jvilk/BrowserFS) and [cmem_helpers](https://github.com/konsumer/cmem_helpers), which are both pretty easy to setup with/without a package-manager or bundler, and are both otherwise useful for wasm stuff.
 
 You will need to export `memory` & `malloc` in your wasm.
 
