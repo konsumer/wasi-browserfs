@@ -300,7 +300,7 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
             totalBytesRead++
           }
         }
-        dataView.setInt32(bytesReadPtr, totalBytesRead, true)
+        dataView.setUint32(bytesReadPtr, totalBytesRead, true)
 
         // this should be data, split up into iovs
         console.log('data', iovs.map(([offset, length]) => instance.exports.memory.buffer.slice(offset, offset + length)))
@@ -309,7 +309,7 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
         console.log('size', instance.exports.memory.buffer.slice(bytesReadPtr, bytesReadPtr + 4))
 
         // TODO: this gets in a loop for some reason, stopping with WASI_EBADF, but I should return WASI_ESUCCESS
-        return WASI_ESUCCESS
+        return WASI_EBADF
       } catch (e) {
         console.error(e)
         return WASI_EBADF
