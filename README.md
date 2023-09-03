@@ -117,4 +117,4 @@ const wasi_snapshot_preview1 = setup(fs, stdout, stderr)
 wasi_snapshot_preview1._stdin = 'This is some text\n'
 ```
 
-Each read will clear `_stdin`.
+Each read, in wasm code, will clear `_stdin`.
