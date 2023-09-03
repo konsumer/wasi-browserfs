@@ -66,14 +66,18 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
       }
     }
 
-    // put some bytes into iovecs
+    // put some bytes into iovecs, return total size read
     read (source) {
       let offset = 0
       for (const [ptr, len] of this.iovs) {
+        if (offset >= source.length) {
+          break
+        }
         const b = getSlice8(ptr, len)
         b.set(source.slice(offset, offset + len), 0)
-        offset += len
+        offset += b.byteLength
       }
+      return offset
     }
 
     // get some bytes from iovecs
@@ -309,10 +313,9 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
         }
 
         const iovs = new Iovec(iovsPtr, iovsLength)
-        iovs.read(source)
+        const totalBytes = iovs.read(source)
         const dataView = new DataView(instance.exports.memory.buffer)
-        dataView.setUint32(bytesReadPtr, source.length, true)
-        console.log(instance.exports.memory.buffer.slice(bytesReadPtr, bytesReadPtr + 4))
+        dataView.setUint32(bytesReadPtr, totalBytes, true)
 
         // TODO: this gets in a loop for some reason, stopping with WASI_EBADF, but I should return WASI_ESUCCESS
         return WASI_EBADF
