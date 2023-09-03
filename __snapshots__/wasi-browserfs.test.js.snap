@@ -5,7 +5,7 @@ exports[`simple 1`] = `
   "This is a test of stderr",
   ":",
   " ",
-  "Bad file descriptor",
+  "Success",
   "
 ",
   "File Read Error",
@@ -20,6 +20,8 @@ exports[`simple 1`] = `
 exports[`simple 2`] = `
 [
   "This is a simple tester of filesystem stuff.
+",
+  "
 ",
   "Filesize: 2818
 
