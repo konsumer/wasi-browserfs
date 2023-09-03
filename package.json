@@ -11,7 +11,8 @@
   "scripts": {
     "test": "vitetest run --globals",
     "start": "vite",
-    "example": "cd example && docker run -it --rm -v $(pwd):/cart konsumer/null0:latest make"
+    "example": "cd example && docker run -it --rm -v $(pwd):/cart konsumer/null0:latest make",
+    "example:native": "cd example && gcc simple.c -o simple"
   },
   "keywords": [
     "was",

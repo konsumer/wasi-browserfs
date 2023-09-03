@@ -80,6 +80,8 @@ const {instance} = await WebAssembly.instantiateStreaming(fetch("example/simple.
 
 wasi_snapshot_preview1._set_instance(instance)
 
+wasi_snapshot_preview1._stdin=`here is some test text\n`
+
 if (instance.exports._initialize) {
   instance.exports._initialize
 }

@@ -2,7 +2,7 @@
 
 A light [WASI](https://wasi.dev/) for browsers, that uses BrowserFS.
 
-I saw a few [WASI](https://wasi.dev/) implementations for browsers, but they all seemed a bit heavy, complicated, and I could not get them working for my purposes, so I made my own.
+I saw a few [WASI](https://wasi.dev/) implementations for browsers, but they all seemed a bit heavy, complicated, or just broken, at least for my purposes, so I made my own.
 
 [BrowserFS](https://github.com/jvilk/BrowserFS) allows you to merge multiple filesystems (for example read zip, but write to localstorage) so you can write code in your favorite language that supports WASI, and run it in browsers (and also native.)
 

@@ -37,5 +37,14 @@ int main() {
 
   fclose(file);
 
+  char *line =NULL;
+  size_t len = 0;
+  ssize_t lineSize = 0;
+
+  printf("Please enter a line:\n");
+  lineSize = getline(&line, &len, stdin);
+  printf("You entered %s, which has %zu chars.\n", line, lineSize -1);
+  free(line);
+
   return 0;
 }

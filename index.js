@@ -13,6 +13,8 @@ const FILENO_STDIN = 0
 const FILENO_STDOUT = 1
 const FILENO_STDERR = 2
 
+const encoder = new TextEncoder()
+
 // this will maybe eventually be upstream
 // https://github.com/jvilk/BrowserFS/issues/366
 export const getFs = options => new Promise((resolve, reject) => {
@@ -53,6 +55,15 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
       throw new Error('You must set instance before calling anything that uses memory. It should export malloc and memory.')
     }
     return memhelpers(instance?.exports?.memory?.buffer, instance?.exports?.malloc)
+  }
+
+  const getIovs = (iovsPtr, iovsLength) => {
+    const d = new Uint32Array(instance.exports.memory.buffer.slice(iovsPtr, iovsPtr + iovsLength * 8))
+    const out = []
+    for (let i = 0; i < (iovsLength * 2); i += 2) {
+      out.push([d[i], d[i + 1]])
+    }
+    return out
   }
 
   // stdin, stdout, stderr, /
@@ -103,14 +114,12 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
         }
         const dataView = getDataView()
         const { getString } = getHelpers()
-        const iovs = getSlice32(iovsPtr, iovsLength * 2)
+        const iovs = getIovs(iovsPtr, iovsLength)
 
         if (fd === FILENO_STDOUT || fd === FILENO_STDERR) {
           let text = ''
           let totalBytesWritten = 0
-          for (let i = 0; i < iovsLength * 2; i += 2) {
-            const offset = iovs[i]
-            const length = iovs[i + 1]
+          for (const [offset, length] of iovs) {
             const textChunk = getString(offset, length)
             text += textChunk
             totalBytesWritten += length
@@ -221,10 +230,10 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
           if (fd === 3) { // root dir
             filetype = 3
           } else {
-            if (!fds[fd - 1]) {
+            if (!fds[fd]) {
               throw new Error(`fd ${fd} is not available.`)
             }
-            const f = fs.statSync(fds[fd - 1])
+            const f = fs.statSync(fds[fd])
             if (f.isDirectory()) {
               filetype = 3
             } else {
@@ -260,7 +269,7 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
         }
         // TODO: do actual fs.openSync here
         fds.push(path)
-        dataView.setUint32(fdPointer, fds.length, true)
+        dataView.setUint32(fdPointer, fds.length - 1, true)
         return WASI_ESUCCESS
       } catch (e) {
         console.error(e)
@@ -270,45 +279,37 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
 
     fd_read (fd, iovsPtr, iovsLength, bytesReadPtr) {
       try {
-        if (fd === 1 || fd === 2) {
+        if (fd === FILENO_STDOUT || fd === FILENO_STDERR) {
           throw new Error('Cannot read from stdout/stderr')
         }
+        const dataView = new DataView(instance.exports.memory.buffer)
+        const iovs = getIovs(iovsPtr, iovsLength)
+        const source = fd === FILENO_STDIN ? encoder.encode(wasi._stdin) : fs.readFileSync(fds[fd])
 
-        // TODO: replace with slice/dataview functions
-        const memory = new Uint8Array(instance.exports.memory.buffer)
-        const iovs = new Uint32Array(instance.exports.memory.buffer, iovsPtr, iovsLength * 2)
-        let totalBytesRead = 0
-
-        if (fd === 0) { // stdin
-          for (let i = 0; i < iovsLength * 2; i += 2) {
-            const offset = iovs[i]
-            const length = iovs[i + 1]
-            const chunk = wasi._stdin.slice(0, length)
-            wasi._stdin = wasi._stdin.slice(length)
-            memory.set(chunk, offset)
-            totalBytesRead += chunk.byteLength
-            if (wasi._stdin.length === 0) break
-          }
-        } else {
-        // TODO: use open/close/read properly
-          const out = fs.readFileSync(fds[fd - 1])
-
-          for (let i = 0; i < iovsLength * 2; i += 2) {
-            const offset = iovs[i]
-            const length = iovs[i + 1]
-            const start = (i / 2) * length
-            const chunk = out.slice(start, start + length)
-            memory.set(chunk, offset)
-            console.log({ offset, memory, chunk })
-            totalBytesRead += chunk.byteLength
-          }
+        if (fd === FILENO_STDIN) {
+          wasi._stdin = ''
         }
 
-        const dataView = new DataView(instance.exports.memory.buffer)
+        let totalBytesRead = 0
+        for (const [offset, length] of iovs) {
+          for (let c = 0; c < length; c++) {
+            if (source[c] == undefined) {
+              break
+            }
+            dataView.setUint8(offset + c, source[c])
+            totalBytesRead++
+          }
+        }
         dataView.setInt32(bytesReadPtr, totalBytesRead, true)
 
+        // this should be data, split up into iovs
+        console.log('data', iovs.map(([offset, length]) => instance.exports.memory.buffer.slice(offset, offset + length)))
+
+        // this should be size, in 4 bytes
+        console.log('size', instance.exports.memory.buffer.slice(bytesReadPtr, bytesReadPtr + 4))
+
         // TODO: this gets in a loop for some reason, stopping with WASI_EBADF, but I should return WASI_ESUCCESS
-        return WASI_EBADF
+        return WASI_ESUCCESS
       } catch (e) {
         console.error(e)
         return WASI_EBADF
