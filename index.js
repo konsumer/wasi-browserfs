@@ -57,13 +57,36 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
     return memhelpers(instance?.exports?.memory?.buffer, instance?.exports?.malloc)
   }
 
-  const getIovs = (iovsPtr, iovsLength) => {
-    const d = new Uint32Array(instance.exports.memory.buffer.slice(iovsPtr, iovsPtr + iovsLength * 8))
-    const out = []
-    for (let i = 0; i < (iovsLength * 2); i += 2) {
-      out.push([d[i], d[i + 1]])
+  class Iovec {
+    constructor (iovsPtr, iovsLength) {
+      const d = getSlice32(iovsPtr, iovsLength * 8)
+      this.iovs = []
+      for (let i = 0; i < (iovsLength * 2); i += 2) {
+        this.iovs.push([d[i], d[i + 1]])
+      }
     }
-    return out
+
+    // put some bytes into iovecs
+    read (source) {
+      let offset = 0
+      for (const [ptr, len] of this.iovs) {
+        const b = getSlice8(ptr, len)
+        b.set(source.slice(offset, offset + len), 0)
+        offset += len
+      }
+    }
+
+    // get some bytes from iovecs
+    write () {
+      const { getString } = getHelpers()
+      const i = 0
+      let text = ''
+      for (const [offset, length] of this.iovs) {
+        const textChunk = getString(offset, length)
+        text += textChunk
+      }
+      return text
+    }
   }
 
   // stdin, stdout, stderr, /
@@ -117,29 +140,18 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
           throw new Error('Cannot write to stdin')
         }
         const dataView = getDataView()
-        const { getString } = getHelpers()
-        const iovs = getIovs(iovsPtr, iovsLength)
+        const iovs = new Iovec(iovsPtr, iovsLength)
+        const text = iovs.write()
+        dataView.setUint32(bytesWrittenPtr, text.length, true)
 
-        if (fd === FILENO_STDOUT || fd === FILENO_STDERR) {
-          let text = ''
-          let totalBytesWritten = 0
-          for (const [offset, length] of iovs) {
-            const textChunk = getString(offset, length)
-            text += textChunk
-            totalBytesWritten += length
-          }
-          dataView.setInt32(bytesWrittenPtr, totalBytesWritten, true)
-
-          if (fd === FILENO_STDOUT) {
-            stdout(text)
-          }
-
-          if (fd === FILENO_STDERR) {
-            stderr(text)
-          }
-        } else {
-          // TODO: handle other files
+        if (fd === FILENO_STDOUT) {
+          stdout(text)
         }
+        if (fd === FILENO_STDERR) {
+          stderr(text)
+        }
+
+        // TODO: handle other files
 
         return WASI_ESUCCESS
       } catch (e) {
@@ -289,31 +301,18 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
         if (fd === FILENO_STDOUT || fd === FILENO_STDERR) {
           throw new Error('Cannot read from stdout/stderr')
         }
-        const dataView = new DataView(instance.exports.memory.buffer)
-        const iovs = getIovs(iovsPtr, iovsLength)
+
         const source = fd === FILENO_STDIN ? encoder.encode(wasi._stdin) : fs.readFileSync(fds[fd])
 
         if (fd === FILENO_STDIN) {
           wasi._stdin = ''
         }
 
-        let totalBytesRead = 0
-        for (const [offset, length] of iovs) {
-          for (let c = 0; c < length; c++) {
-            if (source[c] == undefined) {
-              break
-            }
-            dataView.setUint8(offset + c, source[c])
-            totalBytesRead++
-          }
-        }
-        dataView.setUint32(bytesReadPtr, totalBytesRead, true)
-
-        // this should be data, split up into iovs
-        // console.log('data', iovs.map(([offset, length]) => instance.exports.memory.buffer.slice(offset, offset + length)))
-
-        // this should be size, in 4 bytes
-        // console.log('size', instance.exports.memory.buffer.slice(bytesReadPtr, bytesReadPtr + 4))
+        const iovs = new Iovec(iovsPtr, iovsLength)
+        iovs.read(source)
+        const dataView = new DataView(instance.exports.memory.buffer)
+        dataView.setUint32(bytesReadPtr, source.length, true)
+        console.log(instance.exports.memory.buffer.slice(bytesReadPtr, bytesReadPtr + 4))
 
         // TODO: this gets in a loop for some reason, stopping with WASI_EBADF, but I should return WASI_ESUCCESS
         return WASI_EBADF

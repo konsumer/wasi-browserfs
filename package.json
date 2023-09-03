@@ -9,7 +9,8 @@
     }
   },
   "scripts": {
-    "test": "vitetest run --globals",
+    "test": "vitest run --globals --reporter verbose",
+    "test:watch": "vitest --globals --ui",
     "start": "vite",
     "example": "cd example && docker run -it --rm -v $(pwd):/cart konsumer/null0:latest make",
     "example:native": "cd example && gcc simple.c -o simple"
@@ -34,6 +35,7 @@
     "cmem_helpers": "^0.0.9"
   },
   "devDependencies": {
+    "@vitest/ui": "^0.34.3",
     "vite": "^4.4.9",
     "vitest": "^0.34.3"
   }
