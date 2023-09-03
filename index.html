@@ -1,9 +1,44 @@
+<style>
+html, body {
+  height: 50vh;
+  margin: 0;
+}
+body {
+  font: 16px sans-serif;
+}
+p, #io {
+  padding: 0 10px;
+}
+#io {
+  display: flex;
+  gap: 10px;
+  height: 100%;
+}
+#io > textarea {
+  flex: 1;
+  height: 100%;
+  background: black;
+  color: white;
+  white-space: nowrap;
+  overflow: auto;
+  padding: 5px;
+  margin: 0;
+  line-height: 1.2em;
+}
+
+#io > #err {
+  color: red;
+}
+</style>
+
 <p>This is a simple example, to test browser-support.</p>
 
 <p>Here is my stdout/stderr:</p>
 
-<textarea id="out" cols="30"></textarea>
-<textarea id="err" cols="30"></textarea>
+<div id="io">
+<textarea id="out"></textarea>
+<textarea id="err"></textarea>
+</div>
 
 <script type="module">
 import { setup, getFs, Buffer } from '.'
@@ -23,14 +58,23 @@ const fs = await getFs({
   }
 })
 
+// these are kinda fancy textareas that will scroll-to-bottom (similar to a terminal)
+
+const scrollToBottom = t => t.scrollTop = t.scrollHeight
+
 const tout = document.getElementById('out')
 const terr = document.getElementById('err')
 
-const stdout = t => tout.value += t
-const stderr = t => terr.value += t
+const stdout = t => {
+  tout.value += t
+  scrollToBottom(tout)
+}
+const stderr = t => {
+  terr.value += t
+  scrollToBottom(terr)
+}
 
 const wasi_snapshot_preview1 = setup(fs, stdout, stderr)
-
 
 const {instance} = await WebAssembly.instantiateStreaming(fetch("example/simple.wasm"), { wasi_snapshot_preview1 })
 

@@ -41,6 +41,13 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
     return new Uint32Array(instance?.exports?.memory?.buffer, addr, len)
   }
 
+  const getSlice8 = (addr, len) => {
+    if (!instance?.exports?.memory) {
+      throw new Error('You must set instance before calling anything that uses memory. It should export malloc and memory.')
+    }
+    return new Uint8Array(instance?.exports?.memory?.buffer, addr, len)
+  }
+
   const getHelpers = () => {
     if (!instance?.exports?.memory || !instance?.exports?.malloc) {
       throw new Error('You must set instance before calling anything that uses memory. It should export malloc and memory.')
@@ -48,8 +55,14 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
     return memhelpers(instance?.exports?.memory?.buffer, instance?.exports?.malloc)
   }
 
+  // stdin, stdout, stderr, /
+  const fds = [null, null, null, null]
+
   const wasi = {
     _exited: false,
+
+    _stdin: '',
+
     _set_instance (i) {
       instance = i
     },
@@ -84,32 +97,41 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
     },
 
     fd_write (fd, iovsPtr, iovsLength, bytesWrittenPtr) {
+      if (fd === FILENO_STDIN) {
+        throw new Error('Cannot write to stdin')
+      }
       const dataView = getDataView()
       const { getString } = getHelpers()
       const iovs = getSlice32(iovsPtr, iovsLength * 2)
-      let text = ''
-      let totalBytesWritten = 0
-      for (let i = 0; i < iovsLength * 2; i += 2) {
-        const offset = iovs[i]
-        const length = iovs[i + 1]
-        const textChunk = getString(offset, length)
-        text += textChunk
-        totalBytesWritten += length
-      }
-      dataView.setInt32(bytesWrittenPtr, totalBytesWritten, true)
 
-      if (fd === FILENO_STDOUT) {
-        stdout(text)
-      }
+      if (fd === FILENO_STDOUT || fd === FILENO_STDERR) {
+        let text = ''
+        let totalBytesWritten = 0
+        for (let i = 0; i < iovsLength * 2; i += 2) {
+          const offset = iovs[i]
+          const length = iovs[i + 1]
+          const textChunk = getString(offset, length)
+          text += textChunk
+          totalBytesWritten += length
+        }
+        dataView.setInt32(bytesWrittenPtr, totalBytesWritten, true)
 
-      if (fd === FILENO_STDERR) {
-        stderr(text)
+        if (fd === FILENO_STDOUT) {
+          stdout(text)
+        }
+
+        if (fd === FILENO_STDERR) {
+          stderr(text)
+        }
+      } else {
+        // TODO: handle other files
       }
 
       return WASI_ESUCCESS
     },
 
     fd_prestat_get (fd, bufPtr) {
+      // we only have 1 directory mounted: /
       if (fd === 3) {
         const { struct } = getHelpers()
         const wasi_prestat = struct({
@@ -124,14 +146,16 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
 
     fd_prestat_dir_name (fd, pathPtr, pathLen) {
       const { setString } = getHelpers()
+      // we only have 1 directory mounted: /
       setString(pathPtr, '/')
-      return 0
+      return WASI_ESUCCESS
     },
 
     path_filestat_get (dirFd, flags, pathPtr, pathLen, retbufPtr) {
       try {
         const { struct, getString } = getHelpers()
-        const f = fs.statSync(getString(pathPtr, pathLen))
+        const path = getString(pathPtr, pathLen)
+        const f = fs.statSync(path)
 
         if (!f) {
           throw new Error('File not found.')
@@ -148,10 +172,20 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
           ctim: 'BigUint64'
         })
 
+        let fileType = 0 // unknown
+
+        if (path === '/dev/stdout' || path === '/dev/stderr' || path === '/dev/stdin') {
+          fileType = 2 // character_device
+        } else if (f.isDirectory()) {
+          fileType = 3
+        } else {
+          fileType = 4 // regular_file
+        }
+
         wasi_filestat({
           dev: BigInt(f.dev),
           ino: BigInt(f.ino),
-          filetype: BigInt(f.isDirectory() ? 0 : 0), // TODO
+          filetype: BigInt(fileType),
           nlink: BigInt(f.nlink),
           size: BigInt(f.size),
           atim: BigInt(f.atime.getTime() / 1000 | 0),
@@ -166,46 +200,120 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
       }
     },
 
-    // still working on these
-
-    fd_read (...args) {
-      console.log('fd_read', args)
-      return 0
-    },
-
-    fd_seek (...args) {
-      console.log('fd_seek', args)
-      return 0
-    },
-
-    fd_close (...args) {
-      console.log('fd_close', args)
-      return 0
-    },
-
-    fd_seek (...args) {
-      console.log('fd_seek', args)
-      return 0
-    },
-
-    fd_close (...args) {
-      console.log('fd_close', args)
-      return 0
-    },
-
     fd_fdstat_get (fd, bufPtr) {
-      console.log('fd_fdstat_get', { fd, bufPtr })
-      return 0
+      const { struct } = getHelpers()
+
+      const wasi_fdstat = struct({
+        filetype: 'Uint8',
+        flags: 'Uint16',
+        rights_base: 'BigUint64',
+        rights_inheriting: 'BigUint64'
+      })
+
+      let filetype = 0 // unknown
+      if (fd !== 0 && fd !== 1 && fd !== 2) {
+        if (fd === 3) { // root dir
+          filetype = 3
+        } else {
+          if (!fds[fd - 1]) {
+            throw new Error(`fd ${fd} is not available.`)
+          }
+          const f = fs.statSync(fds[fd - 1])
+          if (f.isDirectory()) {
+            filetype = 3
+          } else {
+            filetype = 4 // regular_file
+          }
+        }
+      } else {
+        filetype = 2 // character_device
+      }
+
+      const ret = wasi_fdstat({ filetype }, bufPtr)
+
+      // TODO
+
+      ret.flags = 0
+      ret.rights_base = 0n
+      ret.rights_inheriting = 0n
+
+      return WASI_ESUCCESS
+    },
+
+    path_open (dirfd, dirflags, pathPtr, pathLen, o_flags, fs_rights_base, fs_rights_inheriting, fs_flags, fdPointer) {
+      const { getString } = getHelpers()
+      const dataView = getDataView()
+      try {
+        const path = getString(pathPtr, pathLen)
+        if (!fs.existsSync(path)) {
+          throw new Error('File does not exist.')
+        }
+        // TODO: do actual fs.openSync here
+        fds.push(path)
+        dataView.setUint32(fdPointer, fds.length, true)
+        return WASI_ESUCCESS
+      } catch (e) {
+        console.error(e)
+        return WASI_EBADF
+      }
+    },
+
+    fd_read (fd, iovsPtr, iovsLength, bytesReadPtr) {
+      if (fd === 1 || fd === 2) {
+        throw new Error('Cannot read from stdout/stderr')
+      }
+
+      // TODO: replace with slice/dataview functions
+      const memory = new Uint8Array(instance.exports.memory.buffer)
+      const iovs = new Uint32Array(instance.exports.memory.buffer, iovsPtr, iovsLength * 2)
+      let totalBytesRead = 0
+
+      if (fd === 0) { // stdin
+        for (let i = 0; i < iovsLength * 2; i += 2) {
+          const offset = iovs[i]
+          const length = iovs[i + 1]
+          const chunk = wasi._stdin.slice(0, length)
+          wasi._stdin = wasi._stdin.slice(length)
+          memory.set(chunk, offset)
+          totalBytesRead += chunk.byteLength
+          if (wasi._stdin.length === 0) break
+        }
+      } else {
+        // TODO: use open() properly
+        const out = fs.readFileSync(fds[fd - 1])
+
+        for (let i = 0; i < iovsLength * 2; i += 2) {
+          const offset = iovs[i]
+          const length = iovs[i + 1]
+          const start = i * length
+          const chunk = out.slice(start, start + length)
+          memory.set(chunk, offset)
+          totalBytesRead += chunk.byteLength
+        }
+      }
+
+      const dataView = new DataView(instance.exports.memory.buffer)
+      dataView.setInt32(bytesReadPtr, totalBytesRead, true)
+
+      // TODO: this gets in a loop for some reason, stopping with WASI_EBADF
+      return WASI_EBADF
+    },
+
+    // TODO: still working on these
+
+    fd_seek (...args) {
+      console.log('fd_seek', args)
+      return WASI_ESUCCESS
+    },
+
+    fd_close (...args) {
+      console.log('fd_close', args)
+      return WASI_ESUCCESS
     },
 
     fd_fdstat_set_flags (...args) {
       console.log('fd_fdstat_set_flags', args)
-      return 0
-    },
-
-    path_open (...args) {
-      console.log('path_open', args)
-      return 0
+      return WASI_ESUCCESS
     }
   }
 
