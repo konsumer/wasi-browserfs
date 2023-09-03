@@ -111,4 +111,10 @@ const stderr = t => terr.value += t
 const wasi_snapshot_preview1 = setup(fs, stdout, stderr)
 ```
 
-`stdin` is not implemented yet, but I would like to work out a nice solution.
+`stdin` is not fully implemented yet, but I would like to work out a nice solution. For now, you can insert text into `_stdin`, and it will be read:
+
+```js
+wasi_snapshot_preview1._stdin = 'This is some text\n'
+```
+
+Each read will clear `_stdin`.
