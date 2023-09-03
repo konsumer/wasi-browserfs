@@ -109,6 +109,10 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
 
     fd_write (fd, iovsPtr, iovsLength, bytesWrittenPtr) {
       try {
+        if (fds[fd] === undefined) {
+          throw new Error(`Invalid fd: ${fd}`)
+        }
+
         if (fd === FILENO_STDIN) {
           throw new Error('Cannot write to stdin')
         }
@@ -279,6 +283,9 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
 
     fd_read (fd, iovsPtr, iovsLength, bytesReadPtr) {
       try {
+        if (fds[fd] === undefined) {
+          throw new Error(`Invalid fd: ${fd}`)
+        }
         if (fd === FILENO_STDOUT || fd === FILENO_STDERR) {
           throw new Error('Cannot read from stdout/stderr')
         }
@@ -303,10 +310,10 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
         dataView.setUint32(bytesReadPtr, totalBytesRead, true)
 
         // this should be data, split up into iovs
-        console.log('data', iovs.map(([offset, length]) => instance.exports.memory.buffer.slice(offset, offset + length)))
+        // console.log('data', iovs.map(([offset, length]) => instance.exports.memory.buffer.slice(offset, offset + length)))
 
         // this should be size, in 4 bytes
-        console.log('size', instance.exports.memory.buffer.slice(bytesReadPtr, bytesReadPtr + 4))
+        // console.log('size', instance.exports.memory.buffer.slice(bytesReadPtr, bytesReadPtr + 4))
 
         // TODO: this gets in a loop for some reason, stopping with WASI_EBADF, but I should return WASI_ESUCCESS
         return WASI_EBADF
@@ -318,13 +325,13 @@ export function setup (fs, stdout = console.log, stderr = console.error) {
 
     // TODO: still working on these
 
-    fd_seek (...args) {
-      console.log('fd_seek', args)
+    fd_close (fd) {
+      console.log('fd_close', fd)
       return WASI_ESUCCESS
     },
 
-    fd_close (...args) {
-      console.log('fd_close', args)
+    fd_seek (...args) {
+      console.log('fd_seek', args)
       return WASI_ESUCCESS
     },
 
