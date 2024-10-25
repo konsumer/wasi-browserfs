@@ -1,5 +1,8 @@
 # wasi-browserfs
 
+> [!IMPORTANT]  
+> This is depracated, but I am working on [wasi-browser](https://github.com/konsumer/wasi-browser), now.
+
 A light [WASI](https://wasi.dev/) for browsers, that uses BrowserFS.
 
 > *WARNING*: this is not functional. I ended up switching paths and looking at running assetsys inside another wasm, which works better for my game-engine (what this was originally made for.)
